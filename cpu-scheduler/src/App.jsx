@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import ProcessTable from './components/ProcessTable';
 import AlgorithmSelector from './components/AlgorithmSelector';
 import ResultsDisplay from './components/ResultsDisplay';
 import CalculationButtons from './components/CalculationButtons';
-import TestComponent from './components/TestComponent';
 
 function App() {
   const [algorithm, setAlgorithm] = useState('fcfs');
@@ -22,6 +21,7 @@ function App() {
     '#8F00FF', '#FF5733', '#00BCD4', '#FF9800', 
     '#795548', '#9C27B0', '#607D8B', '#E91E63'
   ];
+  const downloadLinkRef = useRef(null);
 
   // Initialize with default processes
   useEffect(() => {
@@ -374,11 +374,84 @@ function App() {
     }));
   };
 
+  // Export processes as CSV (include results and averages)
+  const handleExportCSV = () => {
+    if (processes.length === 0) return;
+    const header = ['pid','burstTime','arrivalTime','priority','waitingTime','turnaroundTime'];
+    const rows = processes.map(p => [
+      p.pid,
+      p.burstTime,
+      p.arrivalTime,
+      p.priority,
+      p.waitingTime !== undefined ? p.waitingTime : '-',
+      p.turnaroundTime !== undefined ? p.turnaroundTime : '-'
+    ]);
+    // Add averages row
+    rows.push([
+      'Average', '', '', '', results.avgWaitingTime, results.avgTurnaroundTime
+    ]);
+    const csvContent = [header, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    if (downloadLinkRef.current) {
+      downloadLinkRef.current.href = url;
+      downloadLinkRef.current.download = 'processes.csv';
+      downloadLinkRef.current.click();
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
+  };
+
+  // Import processes from CSV
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return;
+      const [header, ...dataRows] = lines;
+      const columns = header.split(',');
+      if (!['pid','burstTime','arrivalTime','priority'].every(col => columns.includes(col))) return;
+      const newProcesses = dataRows.map((row, idx) => {
+        const [pid, burstTime, arrivalTime, priority] = row.split(',');
+        return {
+          id: idx + 1,
+          pid: pid || `P${idx+1}`,
+          burstTime: Number(burstTime) || '',
+          arrivalTime: Number(arrivalTime) || 0,
+          priority: Number(priority) || 1,
+          color: colors[idx % colors.length],
+          waitingTime: '-',
+          turnaroundTime: '-'
+        };
+      });
+      setProcesses(newProcesses);
+      setProcessCounter(newProcesses.length + 1);
+      resetCalculations();
+    };
+    reader.readAsText(file);
+    // Reset the input so the same file can be uploaded again if needed
+    e.target.value = '';
+  };
+
   return (
     <div className="container mt-5">
       <div className="card mb-4">
         <div className="card-body">
           <h2 className="mb-4">CPU Scheduling Algorithm Simulator</h2>
+
+          {/* Export/Import CSV Controls */}
+          <div className="d-flex gap-2 mb-3">
+            <button className="btn btn-outline-secondary" onClick={handleExportCSV}>
+              Export CSV
+            </button>
+            <a ref={downloadLinkRef} style={{ display: 'none' }}>Download</a>
+            <label className="btn btn-outline-secondary mb-0">
+              Import CSV
+              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+            </label>
+          </div>
           
           <AlgorithmSelector 
             algorithm={algorithm}
@@ -404,8 +477,6 @@ function App() {
             onDelete={deleteProcess}
             onUpdate={updateProcess}
           />
-
-          <TestComponent processes={processes} />
 
           <ResultsDisplay results={results} />
           
