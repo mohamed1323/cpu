@@ -66,7 +66,42 @@ function getFCFSWaitingAndTurnaround(processes) {
   return { waiting, turnaround };
 }
 
-// Turnaround Table (FCFS example, easily copy for SJF, Priority)
+// --- NEW: Waiting Table for FCFS ---
+function FCFSWaitingTable({ processes }) {
+  const waiting = [0];
+  for (let i = 1; i < processes.length; i++) {
+    waiting[i] = waiting[i - 1] + processes[i - 1].burstTime;
+  }
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr style={{ background: "#f3f3f3" }}>
+          <th style={thStyle}>Process</th>
+          <th style={thStyle}>Burst Time</th>
+          <th style={thStyle}>Calculation</th>
+          <th style={thStyle}>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {processes.map((p, i) => (
+          <tr key={p.pid}>
+            <td style={tdStyle}>{p.pid}</td>
+            <td style={tdStyle}>{p.burstTime}</td>
+            <td style={tdStyle}>
+              {i === 0
+                ? `WT(${p.pid}) = 0 (first process)`
+                : `WT(${p.pid}) = WT(${processes[i - 1].pid}) + BT(${processes[i - 1].pid}) = ${waiting[i - 1]} + ${processes[i - 1].burstTime} = ${waiting[i]}`
+              }
+            </td>
+            <td style={tdStyle}>{waiting[i]}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// Turnaround Table (FCFS)
 function FCFSTurnaroundTable({ processes }) {
   const { waiting, turnaround } = getFCFSWaitingAndTurnaround(processes);
   return (
@@ -162,7 +197,6 @@ function CalculationModal({
   ganttSteps,
   resultValue,
   timeQuantum = 2,
-  // Optionally: pass in waiting/turnaround arrays for SJF/Priority/RR
   waitingTimes,
   turnaroundTimes
 }) {
@@ -170,10 +204,18 @@ function CalculationModal({
   const algo = algoInfo[algorithm] || {};
   const calc = calcTypeInfo[calcType] || {};
 
+  // Added: Show Waiting Table for FCFS
+  const showWaitingTable = calcType === "waiting" && Array.isArray(processes) && processes.length > 0;
+
+  let waitingTable = null;
+  if (showWaitingTable && algorithm === "fcfs") {
+    waitingTable = <FCFSWaitingTable processes={processes} />;
+  }
+
   // Recognize which table to show for Turnaround
   const showTurnaroundTable = calcType === "turnaround" && Array.isArray(processes) && processes.length > 0;
 
-  // FCFS Table
+  // FCFS Turnaround Table
   let turnaroundTable = null;
   if (showTurnaroundTable) {
     if (algorithm === "fcfs") {
@@ -193,7 +235,8 @@ function CalculationModal({
   const calcHeadline = {
     turnaround: `${algo.name} - Turnaround Time Calculation`,
     avgWaiting: `${algo.name} - Average Waiting Time Calculation`,
-    avgTurnaround: `${algo.name} - Average Turnaround Time Calculation`
+    avgTurnaround: `${algo.name} - Average Turnaround Time Calculation`,
+    waiting: `${algo.name} - Waiting Time Calculation`,
   }[calcType];
 
   // Explanation for each
@@ -205,7 +248,19 @@ function CalculationModal({
       </>
     ),
     avgWaiting: "Average Waiting Time = Sum of all processes' waiting times / Number of processes",
-    avgTurnaround: "Average Turnaround Time = Sum of all processes' turnaround times / Number of processes"
+    avgTurnaround: "Average Turnaround Time = Sum of all processes' turnaround times / Number of processes",
+    waiting: (
+      <>
+        <div>
+          In First-Come, First-Served scheduling, processes are executed in the order they arrive in the ready queue. The waiting time for each process is calculated as follows:
+        </div>
+        <ul>
+          <li>The first process has a waiting time of 0</li>
+          <li>For subsequent processes, waiting time = previous process waiting time + previous process burst time</li>
+          <li>Formula: <code>wt[i] = bt[i-1] + wt[i-1]</code></li>
+        </ul>
+      </>
+    )
   }[calcType];
 
   // Formula for each
@@ -264,6 +319,15 @@ function CalculationModal({
           <b>Process Execution Timeline:</b>
           <GanttChart steps={ganttSteps} />
         </div>
+        {/* Waiting Table */}
+        {showWaitingTable && (
+          <>
+            <h4 style={{ margin: "24px 0 6px 0" }}>{calcHeadline}</h4>
+            <div style={{ marginBottom: 10 }}>{calcExplain}</div>
+            {waitingTable}
+          </>
+        )}
+        {/* Turnaround Table */}
         {showTurnaroundTable && (
           <>
             <h4 style={{ margin: "24px 0 6px 0" }}>{calcHeadline}</h4>
@@ -271,6 +335,7 @@ function CalculationModal({
             {turnaroundTable}
           </>
         )}
+        {/* Average Waiting Time */}
         {calcType === "avgWaiting" && (
           <>
             <h4 style={{ margin: "24px 0 6px 0" }}>{calcHeadline}</h4>
@@ -278,6 +343,7 @@ function CalculationModal({
             <ResultBox formula={avgFormula} result={resultValue} />
           </>
         )}
+        {/* Average Turnaround Time */}
         {calcType === "avgTurnaround" && (
           <>
             <h4 style={{ margin: "24px 0 6px 0" }}>{calcHeadline}</h4>
