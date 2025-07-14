@@ -1,0 +1,77 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+    .d-flex.justify-content-center.mt-4.gap-2 {
+        flex-wrap: wrap;
+    }
+    
+    .d-flex.justify-content-center.mt-4.gap-2 button {
+        margin-bottom: 10px;
+    }
+}
+
+.process-row {
+    transition: background-color 0.2s ease;
+}
+
+.process-row:hover {
+    background-color: #f8f9fa;
+}
+
+.input-field {
+    min-width: 80px;
+}
+
+.delete-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.results-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.results-card .card-title {
+    color: white;
+    font-weight: 600;
+}
+
+.results-card .card-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.algorithm-selector {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.time-quantum-container {
+    transition: all 0.3s ease;
+}
+
+.btn-group {
+    gap: 0.5rem;
+}
+
+@media (max-width: 576px) {
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group button {
+        margin-bottom: 0.5rem;
+    }
+}
