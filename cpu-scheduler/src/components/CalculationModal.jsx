@@ -103,7 +103,7 @@ function FCFSWaitingTable({ processes }) {
 
 // Turnaround Table (FCFS)
 function FCFSTurnaroundTable({ processes }) {
-  const { waiting, turnaround } = getFCFSWaitingAndTurnaround(processes);
+  const { waiting } = getFCFSWaitingAndTurnaround(processes);
   return (
     <table style={tableStyle}>
       <thead>
@@ -116,15 +116,21 @@ function FCFSTurnaroundTable({ processes }) {
         </tr>
       </thead>
       <tbody>
-        {processes.map((p, i) => (
-          <tr key={p.pid}>
-            <td style={tdStyle}>{p.pid}</td>
-            <td style={tdStyle}>{p.burstTime}</td>
-            <td style={tdStyle}>{waiting[i]}</td>
-            <td style={tdStyle}>{`${waiting[i]} + ${p.burstTime} = ${turnaround[i]}`}</td>
-            <td style={tdStyle}>{turnaround[i]}</td>
-          </tr>
-        ))}
+        {processes.map((p, i) => {
+          // Make sure both are numbers!
+          const waitingTime = Number(waiting[i]);
+          const burstTime = Number(p.burstTime);
+          const turnaroundTime = waitingTime + burstTime;
+          return (
+            <tr key={p.pid}>
+              <td style={tdStyle}>{p.pid}</td>
+              <td style={tdStyle}>{burstTime}</td>
+              <td style={tdStyle}>{waitingTime}</td>
+              <td style={tdStyle}>{`${waitingTime} + ${burstTime} = ${turnaroundTime}`}</td>
+              <td style={tdStyle}>{turnaroundTime}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
