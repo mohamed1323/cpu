@@ -7,23 +7,30 @@ import ResultsDisplay from './components/ResultsDisplay';
 import CalculationButtons from './components/CalculationButtons';
 
 function App() {
+  // State for selected algorithm
   const [algorithm, setAlgorithm] = useState('fcfs');
+  // State for time quantum (used in Round Robin)
   const [timeQuantum, setTimeQuantum] = useState(2);
+  // State for the list of processes
   const [processes, setProcesses] = useState([]);
+  // State for the next process ID
   const [processCounter, setProcessCounter] = useState(1);
+  // State for average results
   const [results, setResults] = useState({
     avgWaitingTime: '-',
     avgTurnaroundTime: '-'
   });
 
+  // Color palette for process rows
   const colors = [
     '#4285F4', '#EA4335', '#FBBC05', '#34A853', 
     '#8F00FF', '#FF5733', '#00BCD4', '#FF9800', 
     '#795548', '#9C27B0', '#607D8B', '#E91E63'
   ];
+  // Ref for the hidden download link (CSV export)
   const downloadLinkRef = useRef(null);
 
-  // Initialize with default processes
+  // Initialize with default processes on first render
   useEffect(() => {
     const initialProcesses = [
       {
@@ -57,16 +64,15 @@ function App() {
         turnaroundTime: '-'
       }
     ];
-    
     setProcesses(initialProcesses);
     setProcessCounter(4);
-  }, []); // Empty dependency array to run only once
+  }, []); // Run only once
 
+  // Add a new process to the table
   const addNewProcess = (burstTime = '', arrivalTime = 0, priority = 1) => {
     const pid = 'P' + processCounter;
     const colorIndex = (processCounter - 1) % colors.length;
     const processColor = colors[colorIndex];
-
     const newProcess = {
       id: processCounter,
       pid,
@@ -77,17 +83,18 @@ function App() {
       waitingTime: '-',
       turnaroundTime: '-'
     };
-
     setProcesses(prev => [...prev, newProcess]);
     setProcessCounter(prev => prev + 1);
     resetCalculations();
   };
 
+  // Delete a process by ID
   const deleteProcess = (id) => {
     setProcesses(prev => prev.filter(process => process.id !== id));
     resetCalculations();
   };
 
+  // Update a process field (burstTime, arrivalTime, priority)
   const updateProcess = (id, field, value) => {
     setProcesses(prev => prev.map(process => 
       process.id === id ? { ...process, [field]: value } : process
@@ -95,6 +102,7 @@ function App() {
     resetCalculations();
   };
 
+  // Reset waiting and turnaround times for all processes and averages
   const resetCalculations = () => {
     setProcesses(prev => prev.map(process => ({
       ...process,
@@ -107,6 +115,7 @@ function App() {
     });
   };
 
+  // Prepare processes for calculation (parse numbers, filter out invalid)
   const getProcessesForCalculation = () => {
     return processes.map((process, index) => ({
       pid: process.pid,
@@ -122,12 +131,11 @@ function App() {
     })).filter(process => process.burstTime > 0);
   };
 
+  // Calculate and update all results for the selected algorithm
   const calculateAndDisplayResults = () => {
     let processesForCalc = getProcessesForCalculation();
-    
     if (processesForCalc.length === 0) return;
-
-    // Sort and calculate based on algorithm
+    // Run the selected algorithm
     switch (algorithm) {
       case 'fcfs':
         processesForCalc = fcfs(processesForCalc);
@@ -142,13 +150,13 @@ function App() {
         processesForCalc = roundRobin(processesForCalc, timeQuantum);
         break;
     }
-
-    // Update UI with results
+    // Update process table and averages
     updateProcessTable(processesForCalc);
     calculateAverageWaitingTime();
     calculateAverageTurnaroundTime();
   };
 
+  // Update process table with calculated waiting/turnaround times
   const updateProcessTable = (calculatedProcesses) => {
     setProcesses(prev => prev.map(process => {
       const calculated = calculatedProcesses.find(p => p.pid === process.pid);
@@ -160,40 +168,38 @@ function App() {
     }));
   };
 
+  // Calculate average waiting time
   const calculateAverageWaitingTime = () => {
     const validProcesses = processes.filter(p => p.waitingTime !== '-');
     if (validProcesses.length === 0) return;
-
     const totalWaitingTime = validProcesses.reduce((sum, p) => sum + p.waitingTime, 0);
     const average = (totalWaitingTime / validProcesses.length).toFixed(2);
     setResults(prev => ({ ...prev, avgWaitingTime: average }));
   };
 
+  // Calculate average turnaround time
   const calculateAverageTurnaroundTime = () => {
     const validProcesses = processes.filter(p => p.turnaroundTime !== '-');
     if (validProcesses.length === 0) return;
-
     const totalTurnaroundTime = validProcesses.reduce((sum, p) => sum + p.turnaroundTime, 0);
     const average = (totalTurnaroundTime / validProcesses.length).toFixed(2);
     setResults(prev => ({ ...prev, avgTurnaroundTime: average }));
   };
 
-  // CPU Scheduling Algorithms
+  // --- CPU Scheduling Algorithms ---
+
+  // First-Come, First-Served (FCFS)
   const fcfs = (processes) => {
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     let currentTime = 0;
-
     return sortedProcesses.map(process => {
       if (currentTime < process.arrivalTime) {
         currentTime = process.arrivalTime;
       }
-      
       const waitingTime = currentTime - process.arrivalTime;
       const completionTime = currentTime + process.burstTime;
       const turnaroundTime = completionTime - process.arrivalTime;
-      
       currentTime = completionTime;
-      
       return {
         ...process,
         waitingTime,
@@ -203,100 +209,84 @@ function App() {
     });
   };
 
+  // Shortest Job First (SJF)
   const sjf = (processes) => {
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     let currentTime = 0;
     const result = [];
     const remainingProcesses = [...sortedProcesses];
-
     while (remainingProcesses.length > 0) {
       const availableProcesses = remainingProcesses.filter(p => p.arrivalTime <= currentTime);
-      
       if (availableProcesses.length === 0) {
         currentTime = remainingProcesses[0].arrivalTime;
         continue;
       }
-
       const shortestJob = availableProcesses.reduce((shortest, current) => 
         current.burstTime < shortest.burstTime ? current : shortest
       );
-
       const waitingTime = currentTime - shortestJob.arrivalTime;
       const completionTime = currentTime + shortestJob.burstTime;
       const turnaroundTime = completionTime - shortestJob.arrivalTime;
-
       result.push({
         ...shortestJob,
         waitingTime,
         turnaroundTime,
         completionTime
       });
-
       currentTime = completionTime;
       remainingProcesses.splice(remainingProcesses.indexOf(shortestJob), 1);
     }
-
     return result;
   };
 
+  // Priority Scheduling
   const priorityScheduling = (processes) => {
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     let currentTime = 0;
     const result = [];
     const remainingProcesses = [...sortedProcesses];
-
     while (remainingProcesses.length > 0) {
       const availableProcesses = remainingProcesses.filter(p => p.arrivalTime <= currentTime);
-      
       if (availableProcesses.length === 0) {
         currentTime = remainingProcesses[0].arrivalTime;
         continue;
       }
-
       const highestPriority = availableProcesses.reduce((highest, current) => 
         current.priority < highest.priority ? current : highest
       );
-
       const waitingTime = currentTime - highestPriority.arrivalTime;
       const completionTime = currentTime + highestPriority.burstTime;
       const turnaroundTime = completionTime - highestPriority.arrivalTime;
-
       result.push({
         ...highestPriority,
         waitingTime,
         turnaroundTime,
         completionTime
       });
-
       currentTime = completionTime;
       remainingProcesses.splice(remainingProcesses.indexOf(highestPriority), 1);
     }
-
     return result;
   };
 
+  // Round Robin
   const roundRobin = (processes, timeQuantum) => {
     const sortedProcesses = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
     let currentTime = 0;
     const result = [];
     const remainingProcesses = sortedProcesses.map(p => ({ ...p, remainingTime: p.burstTime }));
-
     while (remainingProcesses.length > 0) {
       const currentProcess = remainingProcesses.shift();
-      
       if (currentTime < currentProcess.arrivalTime) {
         currentTime = currentProcess.arrivalTime;
       }
-
       const executionTime = Math.min(timeQuantum, currentProcess.remainingTime);
       currentTime += executionTime;
       currentProcess.remainingTime -= executionTime;
-
       if (currentProcess.remainingTime === 0) {
         // Process completed
         const waitingTime = currentTime - currentProcess.burstTime - currentProcess.arrivalTime;
         const turnaroundTime = currentTime - currentProcess.arrivalTime;
-        
         result.push({
           ...currentProcess,
           waitingTime,
@@ -308,19 +298,20 @@ function App() {
         remainingProcesses.push(currentProcess);
       }
     }
-
     return result;
   };
 
+  // --- Calculation Button Handlers ---
+
+  // Calculate all results
   const handleCalculateAll = () => {
     calculateAndDisplayResults();
   };
 
+  // Calculate only waiting times
   const handleCalculateWaitingTime = () => {
     let processesForCalc = getProcessesForCalculation();
-    
     if (processesForCalc.length === 0) return;
-
     switch (algorithm) {
       case 'fcfs':
         processesForCalc = fcfs(processesForCalc);
@@ -335,7 +326,6 @@ function App() {
         processesForCalc = roundRobin(processesForCalc, timeQuantum);
         break;
     }
-
     setProcesses(prev => prev.map(process => {
       const calculated = processesForCalc.find(p => p.pid === process.pid);
       return calculated ? {
@@ -345,11 +335,10 @@ function App() {
     }));
   };
 
+  // Calculate only turnaround times
   const handleCalculateTurnaroundTime = () => {
     let processesForCalc = getProcessesForCalculation();
-    
     if (processesForCalc.length === 0) return;
-
     switch (algorithm) {
       case 'fcfs':
         processesForCalc = fcfs(processesForCalc);
@@ -364,7 +353,6 @@ function App() {
         processesForCalc = roundRobin(processesForCalc, timeQuantum);
         break;
     }
-
     setProcesses(prev => prev.map(process => {
       const calculated = processesForCalc.find(p => p.pid === process.pid);
       return calculated ? {
@@ -373,6 +361,8 @@ function App() {
       } : process;
     }));
   };
+
+  // --- Export/Import CSV ---
 
   // Export processes as CSV (include results and averages)
   const handleExportCSV = () => {

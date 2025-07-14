@@ -11,8 +11,10 @@ const ProcessTable = ({ processes, algorithm, onDelete, onUpdate }) => {
         <thead>
           <tr>
             <th className="text-center">Process ID</th>
+            {algorithm === 'sjf' && (
+              <th className="text-center">Arrival Time</th>
+            )}
             <th className="text-center">Burst Time</th>
-            <th className="text-center">Arrival Time</th>
             <th className={`text-center priority-column ${algorithm !== 'priority' ? 'd-none' : ''}`}>
               Priority
             </th>
@@ -25,22 +27,24 @@ const ProcessTable = ({ processes, algorithm, onDelete, onUpdate }) => {
           {processes.map((process) => (
             <tr key={process.id} className="process-row">
               <td className="text-center">{process.pid}</td>
+              {algorithm === 'sjf' && (
+                <td>
+                  <input 
+                    type="number" 
+                    className="form-control input-field arrival-time" 
+                    min="0"
+                    value={process.arrivalTime}
+                    onChange={(e) => handleInputChange(process.id, 'arrivalTime', e.target.value)}
+                  />
+                </td>
+              )}
               <td>
                 <input 
                   type="number" 
                   className="form-control input-field burst-time" 
-                  min="1" 
+                  min="1"
                   value={process.burstTime}
                   onChange={(e) => handleInputChange(process.id, 'burstTime', e.target.value)}
-                />
-              </td>
-              <td>
-                <input 
-                  type="number" 
-                  className="form-control input-field arrival-time" 
-                  min="0" 
-                  value={process.arrivalTime}
-                  onChange={(e) => handleInputChange(process.id, 'arrivalTime', e.target.value)}
                 />
               </td>
               <td className={`priority-cell ${algorithm !== 'priority' ? 'd-none' : ''}`}>
