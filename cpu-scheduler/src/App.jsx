@@ -5,11 +5,13 @@ import ProcessTable from './components/ProcessTable';
 import AlgorithmSelector from './components/AlgorithmSelector';
 import ResultsDisplay from './components/ResultsDisplay';
 import CalculationButtons from './components/CalculationButtons';
+import AlgorithmFormula from './components/AlgorithmFormula';
+import CalculationModal from './components/CalculationModal';
 
 function App() {
   // State for selected algorithm
   const [algorithm, setAlgorithm] = useState('fcfs');
-  // State for time quantum (used in Round Robin)
+  // State for time quantum (used in Arrival TimeRound Robin)
   const [timeQuantum, setTimeQuantum] = useState(2);
   // State for the list of processes
   const [processes, setProcesses] = useState([]);
@@ -20,6 +22,12 @@ function App() {
     avgWaitingTime: '-',
     avgTurnaroundTime: '-'
   });
+  const [darkMode, setDarkMode] = useState(false); // Dark mode state
+  const [lastCalcType, setLastCalcType] = useState(null); // Track last calculation type
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalCalcType, setModalCalcType] = useState(null);
+  const [modalResult, setModalResult] = useState(null);
+  const [modalGantt, setModalGantt] = useState([]);
 
   // Color palette for process rows
   const colors = [
@@ -301,15 +309,38 @@ function App() {
     return result;
   };
 
+  // Helper to build Gantt chart steps for FCFS/SJF
+  function buildGanttSteps(processes, algorithm) {
+    let steps = [];
+    if (algorithm === 'fcfs' || algorithm === 'sjf') {
+      let currentTime = 0;
+      const sorted = [...processes].sort((a, b) => a.arrivalTime - b.arrivalTime);
+      for (let p of sorted) {
+        const start = Math.max(currentTime, p.arrivalTime);
+        const end = start + Number(p.burstTime);
+        steps.push({ pid: p.pid, color: p.color, start, end });
+        currentTime = end;
+      }
+    }
+    // You can add more logic for other algorithms if needed
+    return steps;
+  }
+
   // --- Calculation Button Handlers ---
 
   // Calculate all results
   const handleCalculateAll = () => {
+    setLastCalcType('all');
     calculateAndDisplayResults();
+    setModalCalcType('all');
+    setModalResult(null);
+    setModalGantt(buildGanttSteps(processes, algorithm));
+    setModalOpen(true);
   };
 
   // Calculate only waiting times
   const handleCalculateWaitingTime = () => {
+    setLastCalcType('waiting');
     let processesForCalc = getProcessesForCalculation();
     if (processesForCalc.length === 0) return;
     switch (algorithm) {
@@ -333,10 +364,16 @@ function App() {
         waitingTime: calculated.waitingTime
       } : process;
     }));
+    // Show modal with waiting times
+    setModalCalcType('waiting');
+    setModalResult(null);
+    setModalGantt(buildGanttSteps(processesForCalc, algorithm));
+    setModalOpen(true);
   };
 
   // Calculate only turnaround times
   const handleCalculateTurnaroundTime = () => {
+    setLastCalcType('turnaround');
     let processesForCalc = getProcessesForCalculation();
     if (processesForCalc.length === 0) return;
     switch (algorithm) {
@@ -360,6 +397,31 @@ function App() {
         turnaroundTime: calculated.turnaroundTime
       } : process;
     }));
+    // Show modal with turnaround times
+    setModalCalcType('turnaround');
+    setModalResult(null);
+    setModalGantt(buildGanttSteps(processesForCalc, algorithm));
+    setModalOpen(true);
+  };
+
+  // Calculate average waiting time
+  const handleCalculateAvgWaitingTime = () => {
+    setLastCalcType('avgWaiting');
+    calculateAverageWaitingTime();
+    setModalCalcType('avgWaiting');
+    setModalResult(results.avgWaitingTime);
+    setModalGantt(buildGanttSteps(processes, algorithm));
+    setModalOpen(true);
+  };
+
+  // Calculate average turnaround time
+  const handleCalculateAvgTurnaroundTime = () => {
+    setLastCalcType('avgTurnaround');
+    calculateAverageTurnaroundTime();
+    setModalCalcType('avgTurnaround');
+    setModalResult(results.avgTurnaroundTime);
+    setModalGantt(buildGanttSteps(processes, algorithm));
+    setModalOpen(true);
   };
 
   // --- Export/Import CSV ---
@@ -391,56 +453,30 @@ function App() {
     }
   };
 
-  // Import processes from CSV
-  const handleImportCSV = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target.result;
-      const lines = text.trim().split(/\r?\n/);
-      if (lines.length < 2) return;
-      const [header, ...dataRows] = lines;
-      const columns = header.split(',');
-      if (!['pid','burstTime','arrivalTime','priority'].every(col => columns.includes(col))) return;
-      const newProcesses = dataRows.map((row, idx) => {
-        const [pid, burstTime, arrivalTime, priority] = row.split(',');
-        return {
-          id: idx + 1,
-          pid: pid || `P${idx+1}`,
-          burstTime: Number(burstTime) || '',
-          arrivalTime: Number(arrivalTime) || 0,
-          priority: Number(priority) || 1,
-          color: colors[idx % colors.length],
-          waitingTime: '-',
-          turnaroundTime: '-'
-        };
-      });
-      setProcesses(newProcesses);
-      setProcessCounter(newProcesses.length + 1);
-      resetCalculations();
-    };
-    reader.readAsText(file);
-    // Reset the input so the same file can be uploaded again if needed
-    e.target.value = '';
-  };
+  // Toggle dark mode
+  const handleToggleDarkMode = () => setDarkMode((prev) => !prev);
 
   return (
-    <div className="container mt-5">
+    <div className={`container mt-5${darkMode ? ' dark-mode' : ''}`}>
       <div className="card mb-4">
         <div className="card-body">
-          <h2 className="mb-4">CPU Scheduling Algorithm Simulator</h2>
-
-          {/* Export/Import CSV Controls */}
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <h2 className="mb-0">CPU Scheduling Algorithm Simulator</h2>
+            <button
+              className="btn btn-outline-dark"
+              onClick={handleToggleDarkMode}
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? '🌙 Dark' : '☀️ Light'}
+            </button>
+          </div>
+          
+          {/* Export CSV Control Only */}
           <div className="d-flex gap-2 mb-3">
             <button className="btn btn-outline-secondary" onClick={handleExportCSV}>
               Export CSV
             </button>
             <a ref={downloadLinkRef} style={{ display: 'none' }}>Download</a>
-            <label className="btn btn-outline-secondary mb-0">
-              Import CSV
-              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-            </label>
           </div>
           
           <AlgorithmSelector 
@@ -450,6 +486,8 @@ function App() {
             setTimeQuantum={setTimeQuantum}
             resetCalculations={resetCalculations}
           />
+
+          <AlgorithmFormula algorithm={algorithm} />
           
           <h3 className="mt-4 mb-3">Process Table</h3>
           <div className="d-flex justify-content-end mb-3">
@@ -474,8 +512,20 @@ function App() {
             onCalculateAll={handleCalculateAll}
             onCalculateWaitingTime={handleCalculateWaitingTime}
             onCalculateTurnaroundTime={handleCalculateTurnaroundTime}
-            onCalculateAvgWaitingTime={calculateAverageWaitingTime}
-            onCalculateAvgTurnaroundTime={calculateAverageTurnaroundTime}
+            onCalculateAvgWaitingTime={handleCalculateAvgWaitingTime}
+            onCalculateAvgTurnaroundTime={handleCalculateAvgTurnaroundTime}
+          />
+
+          {/* Calculation Modal */}
+          <CalculationModal
+            show={modalOpen}
+            onClose={() => setModalOpen(false)}
+            algorithm={algorithm}
+            calcType={modalCalcType}
+            processes={processes}
+            results={results}
+            ganttSteps={modalGantt}
+            resultValue={modalResult}
           />
         </div>
       </div>
