@@ -1,5 +1,5 @@
 # CPU Scheduling Algorithm Simulator
-
+#complete project
 A React.js application that simulates various CPU scheduling algorithms with a modern, interactive interface.
 
 ## Features
