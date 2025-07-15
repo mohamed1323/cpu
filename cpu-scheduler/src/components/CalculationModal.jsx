@@ -265,49 +265,25 @@ function PriorityWaitingTable({ processes }) {
   );
 }
 
-// Waiting Table for Round Robin
-function RRWaitingTable({ processes, perRoundSchedule }) {
+// Waiting Table for Round Robin (simplified)
+function RRWaitingTable({ processes, waitingTimes }) {
   return (
-    <div>
-      <h4>Process Execution Timeline:</h4>
-      <div style={{ marginBottom: '16px' }}>
-        {perRoundSchedule.map((step, i) => (
-          <span key={i} style={{ marginRight: '8px' }}>{step.process}</span>
-        ))}
-      </div>
-      <div style={{ marginBottom: '24px' }}>
-        {perRoundSchedule.map((step, i) => (
-          <span key={i} style={{ marginRight: '32px' }}>{step.start}</span>
-        ))}
-        <span>{perRoundSchedule[perRoundSchedule.length - 1].start + perRoundSchedule[perRoundSchedule.length - 1].run}</span>
-      </div>
-
-      <h4>Per-Round Schedule</h4>
-      <table style={tableStyle}>
-        <thead>
-          <tr style={{ background: "#f3f3f3" }}>
-            <th style={thStyle}>Round</th>
-            <th style={thStyle}>Process</th>
-            <th style={thStyle}>Start</th>
-            <th style={thStyle}>Run</th>
-            <th style={thStyle}>Remaining Before</th>
-            <th style={thStyle}>Remaining After</th>
+    <table style={tableStyle}>
+      <thead>
+        <tr style={{ background: "#f3f3f3" }}>
+          <th style={thStyle}>Process</th>
+          <th style={thStyle}>Waiting Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {processes.map((p, i) => (
+          <tr key={p.pid}>
+            <td style={tdStyle}>{p.pid}</td>
+            <td style={tdStyle}>{waitingTimes[i]}</td>
           </tr>
-        </thead>
-        <tbody>
-          {perRoundSchedule.map((step, i) => (
-            <tr key={i}>
-              <td style={tdStyle}>{step.round}</td>
-              <td style={tdStyle}>{step.process}</td>
-              <td style={tdStyle}>{step.start}</td>
-              <td style={tdStyle}>{step.run}</td>
-              <td style={tdStyle}>{step.remainingBefore}</td>
-              <td style={tdStyle}>{step.remainingAfter}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -500,7 +476,7 @@ function CalculationModal({
       } else if (algorithm === "priority") {
           waitingTable = <PriorityWaitingTable processes={processes} />;
       } else if (algorithm === "rr") {
-          waitingTable = <RRWaitingTable processes={processes} perRoundSchedule={rrData?.perRoundSchedule || []} />;
+          waitingTable = <RRWaitingTable processes={processes} waitingTimes={rrData?.waitingTimes || []} />;
       }
   }
 
