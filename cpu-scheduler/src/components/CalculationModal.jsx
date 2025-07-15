@@ -378,15 +378,12 @@ function CalculationModal({
       avgTurnaround: "Average Turnaround Time = Sum of all processes' turnaround times / Number of processes",
       waiting: algorithm === "priority" ? (
           <>
-              <div>
-                  In Priority Scheduling, processes are executed in order of their priority (lower number = higher priority). 
-                  The waiting time for each process is calculated as follows:
-              </div>
-              <ul>
-                  <li>The highest priority process (lowest number) has a waiting time of 0</li>
-                  <li>For subsequent processes, waiting time = sum of burst times of all higher priority processes</li>
-                  <li>Formula: <code>wt[i] = wt[i-1] + bt[i-1]</code></li>
-              </ul>
+                  <p class="mb-3">In <strong>Priority Scheduling</strong> the CPU is allocated to the
+      process with the <em>highest</em> priority (i.e. the <em>lowest</em> numerical value).
+      The waiting time for each process is computed cumulatively, using:</p>
+      <p class="mb-4"><code>WT[i] = WT[i-1] + BT[i-1]</code> &nbsp;&nbsp;for&nbsp; i &gt; 0, &nbsp;and&nbsp;
+      <code>WT[0] = 0</code></p>
+
           </>
       ) : (
           <>
