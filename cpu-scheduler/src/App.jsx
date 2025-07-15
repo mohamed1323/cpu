@@ -426,32 +426,90 @@ function App() {
 
   // --- Export/Import CSV ---
 
-  // Export processes as CSV (include results and averages)
-  const handleExportCSV = () => {
+   // Export processes as CSV (include results and averages)
+   const handleExportCSV = () => {
     if (processes.length === 0) return;
-    const header = ['pid','burstTime','arrivalTime','priority','waitingTime','turnaroundTime'];
-    const rows = processes.map(p => [
+
+    // Make sure we calculate fresh for the current algorithm
+    let processesForExport = getProcessesForCalculation();
+    if (processesForExport.length === 0) return;
+
+    switch (algorithm) {
+      case 'fcfs':
+        processesForExport = fcfs(processesForExport);
+        break;
+      case 'sjf':
+        processesForExport = sjf(processesForExport);
+        break;
+      case 'priority':
+        processesForExport = priorityScheduling(processesForExport);
+        break;
+      case 'rr':
+        processesForExport = roundRobin(processesForExport, timeQuantum);
+        break;
+      default:
+        break;
+    }
+
+    // Calculate averages for the freshly calculated data
+    const totalWaitingTime = processesForExport.reduce((sum, p) => sum + p.waitingTime, 0);
+    const totalTurnaroundTime = processesForExport.reduce((sum, p) => sum + p.turnaroundTime, 0);
+    const avgWaiting = processesForExport.length > 0 
+      ? (totalWaitingTime / processesForExport.length).toFixed(2) 
+      : '-';
+    const avgTurnaround = processesForExport.length > 0 
+      ? (totalTurnaroundTime / processesForExport.length).toFixed(2) 
+      : '-';
+
+    // CSV metadata
+    const meta = [
+      [`Algorithm:`, algorithm.toUpperCase()],
+      [`Exported:`, new Date().toLocaleString()],
+      []
+    ];
+
+    // CSV header
+    const header = [
+      'pid',
+      'burstTime',
+      'arrivalTime',
+      'priority',
+      'waitingTime',
+      'turnaroundTime'
+    ];
+
+    // Data rows
+    const rows = processesForExport.map(p => [
       p.pid,
-      p.burstTime,
-      p.arrivalTime,
-      p.priority,
-      p.waitingTime !== undefined ? p.waitingTime : '-',
-      p.turnaroundTime !== undefined ? p.turnaroundTime : '-'
+      p.burstTime ?? '-',
+      p.arrivalTime ?? '-',
+      p.priority ?? '-',
+      p.waitingTime ?? '-',
+      p.turnaroundTime ?? '-'
     ]);
+
     // Add averages row
-    rows.push([
-      'Average', '', '', '', results.avgWaitingTime, results.avgTurnaroundTime
-    ]);
-    const csvContent = [header, ...rows].map(row => row.join(',')).join('\n');
+    rows.push(['Average', '', '', '', avgWaiting, avgTurnaround]);
+
+    // Build CSV content
+    const csvContent = [
+      ...meta,
+      header,
+      ...rows
+    ].map(row => row.join(',')).join('\n');
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+
     if (downloadLinkRef.current) {
       downloadLinkRef.current.href = url;
-      downloadLinkRef.current.download = 'processes.csv';
+      downloadLinkRef.current.download = `processes_${algorithm}_${Date.now()}.csv`;
       downloadLinkRef.current.click();
       setTimeout(() => URL.revokeObjectURL(url), 100);
     }
   };
+
+  
 
   // Toggle dark mode
   const handleToggleDarkMode = () => setDarkMode((prev) => !prev);
