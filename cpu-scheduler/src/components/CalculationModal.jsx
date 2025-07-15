@@ -3,7 +3,7 @@ const algoInfo = {
   fcfs: { name: "First-Come, First-Served (FCFS)", explanation: "FCFS schedules processes in the order they arrive." },
   sjf: { name: "Shortest Job First (SJF)", explanation: "SJF schedules the process with the shortest burst time." },
   priority: { name: "Priority Scheduling", explanation: "Priority scheduling runs the process with the highest priority next." },
-  rr: { name: "Round Robin (RR)", explanation: "Round Robin gives each process a time quantum." }
+  rr: { name: "Round Robin (RR)", explanation: "Round Robin gives each process a fixed time quantum (time slice). If a process doesn't complete in its quantum, it's preempted and moved to the back of the ready queue." }
 };
 
 const calcTypeInfo = {
@@ -49,6 +49,13 @@ function GanttChart({ steps }) {
   );
 }
 
+// Helper function to get process color
+function getProcessColor(pid) {
+  const colors = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'];
+  const index = parseInt(pid.slice(1)) % colors.length;
+  return colors[index];
+}
+
 // Util: Calculate waiting and turnaround times for FCFS
 function getFCFSWaitingAndTurnaround(processes) {
   const waiting = [0];
@@ -57,6 +64,93 @@ function getFCFSWaitingAndTurnaround(processes) {
   }
   const turnaround = processes.map((p, i) => waiting[i] + p.burstTime);
   return { waiting, turnaround };
+}
+
+// Util: Calculate waiting and turnaround times for SJF
+function getSJFWaitingAndTurnaround(processes) {
+  const sortedProcesses = [...processes].sort((a, b) => a.burstTime - b.burstTime);
+  const waiting = [0];
+  for (let i = 1; i < sortedProcesses.length; i++) {
+      waiting[i] = waiting[i - 1] + sortedProcesses[i - 1].burstTime;
+  }
+  const turnaround = sortedProcesses.map((p, i) => waiting[i] + p.burstTime);
+  return { waiting, turnaround };
+}
+
+// Util: Calculate waiting and turnaround times for Priority Scheduling
+function getPriorityWaitingAndTurnaround(processes) {
+  const sortedProcesses = [...processes].sort((a, b) => a.priority - b.priority);
+  const waiting = [0];
+  for (let i = 1; i < sortedProcesses.length; i++) {
+    waiting[i] = waiting[i - 1] + sortedProcesses[i - 1].burstTime;
+  }
+  const turnaround = sortedProcesses.map((p, i) => waiting[i] + p.burstTime);
+  return { waiting, turnaround, sortedProcesses };
+}
+
+// Util: Calculate Round Robin scheduling
+function getRRWaitingAndTurnaround(processes, quantum = 1) {
+  const remainingTime = processes.map(p => p.burstTime);
+  const waitingTimes = processes.map(() => 0);
+  const turnaroundTimes = processes.map(() => 0);
+  const ganttSteps = [];
+  const perRoundSchedule = [];
+  let time = 0;
+  let completed = 0;
+  let currentRound = 1;
+
+  while (completed < processes.length) {
+    let anyProcessExecuted = false;
+    
+    for (let i = 0; i < processes.length; i++) {
+      if (remainingTime[i] > 0) {
+        anyProcessExecuted = true;
+        const startTime = time;
+        const executionTime = Math.min(quantum, remainingTime[i]);
+        
+        // Record per-round schedule
+        perRoundSchedule.push({
+          round: currentRound,
+          process: processes[i].pid,
+          start: startTime,
+          run: executionTime,
+          remainingBefore: remainingTime[i],
+          remainingAfter: remainingTime[i] - executionTime
+        });
+        
+        // Update Gantt chart
+        ganttSteps.push({
+          pid: processes[i].pid,
+          start: startTime,
+          end: startTime + executionTime,
+          color: getProcessColor(processes[i].pid)
+        });
+        
+        // Update remaining time
+        remainingTime[i] -= executionTime;
+        time += executionTime;
+        
+        // Update waiting times for other processes
+        for (let j = 0; j < processes.length; j++) {
+          if (j !== i && remainingTime[j] > 0) {
+            waitingTimes[j] += executionTime;
+          }
+        }
+        
+        // If process completed
+        if (remainingTime[i] === 0) {
+          completed++;
+          turnaroundTimes[i] = time;
+        }
+      }
+    }
+    
+    if (anyProcessExecuted) {
+      currentRound++;
+    }
+  }
+
+  return { waitingTimes, turnaroundTimes, ganttSteps, perRoundSchedule };
 }
 
 // Waiting Table for FCFS
@@ -97,17 +191,6 @@ function FCFSWaitingTable({ processes }) {
   );
 }
 
-// Util: Calculate waiting and turnaround times for SJF
-function getSJFWaitingAndTurnaround(processes) {
-  const sortedProcesses = [...processes].sort((a, b) => a.burstTime - b.burstTime);
-  const waiting = [0];
-  for (let i = 1; i < sortedProcesses.length; i++) {
-      waiting[i] = waiting[i - 1] + sortedProcesses[i - 1].burstTime;
-  }
-  const turnaround = sortedProcesses.map((p, i) => waiting[i] + p.burstTime);
-  return { waiting, turnaround };
-}
-
 // Waiting Table for SJF
 function SJFWaitingTable({ processes }) {
   const waiting = getSJFWaitingAndTurnaround(processes).waiting;
@@ -141,17 +224,6 @@ function SJFWaitingTable({ processes }) {
           </tbody>
       </table>
   );
-}
-
-// Util: Calculate waiting and turnaround times for Priority Scheduling
-function getPriorityWaitingAndTurnaround(processes) {
-  const sortedProcesses = [...processes].sort((a, b) => a.priority - b.priority);
-  const waiting = [0];
-  for (let i = 1; i < sortedProcesses.length; i++) {
-    waiting[i] = waiting[i - 1] + sortedProcesses[i - 1].burstTime;
-  }
-  const turnaround = sortedProcesses.map((p, i) => waiting[i] + p.burstTime);
-  return { waiting, turnaround, sortedProcesses };
 }
 
 // Waiting Table for Priority Scheduling
@@ -193,34 +265,49 @@ function PriorityWaitingTable({ processes }) {
   );
 }
 
-// Turnaround Table for Priority Scheduling
-function PriorityTurnaroundTable({ processes }) {
-  const { waiting, sortedProcesses, turnaround } = getPriorityWaitingAndTurnaround(processes);
+// Waiting Table for Round Robin
+function RRWaitingTable({ processes, perRoundSchedule }) {
   return (
-    <table style={tableStyle}>
-      <thead>
-        <tr style={{ background: "#f3f3f3" }}>
-          <th style={thStyle}>Process</th>
-          <th style={thStyle}>Priority</th>
-          <th style={thStyle}>Burst Time</th>
-          <th style={thStyle}>Waiting Time</th>
-          <th style={thStyle}>Calculation</th>
-          <th style={thStyle}>Turnaround Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sortedProcesses.map((p, i) => (
-          <tr key={p.pid}>
-            <td style={tdStyle}>{p.pid}</td>
-            <td style={tdStyle}>{p.priority}</td>
-            <td style={tdStyle}>{p.burstTime}</td>
-            <td style={tdStyle}>{waiting[i]}</td>
-            <td style={tdStyle}>{`${waiting[i]} + ${p.burstTime} = ${turnaround[i]}`}</td>
-            <td style={tdStyle}>{turnaround[i]}</td>
-          </tr>
+    <div>
+      <h4>Process Execution Timeline:</h4>
+      <div style={{ marginBottom: '16px' }}>
+        {perRoundSchedule.map((step, i) => (
+          <span key={i} style={{ marginRight: '8px' }}>{step.process}</span>
         ))}
-      </tbody>
-    </table>
+      </div>
+      <div style={{ marginBottom: '24px' }}>
+        {perRoundSchedule.map((step, i) => (
+          <span key={i} style={{ marginRight: '32px' }}>{step.start}</span>
+        ))}
+        <span>{perRoundSchedule[perRoundSchedule.length - 1].start + perRoundSchedule[perRoundSchedule.length - 1].run}</span>
+      </div>
+
+      <h4>Per-Round Schedule</h4>
+      <table style={tableStyle}>
+        <thead>
+          <tr style={{ background: "#f3f3f3" }}>
+            <th style={thStyle}>Round</th>
+            <th style={thStyle}>Process</th>
+            <th style={thStyle}>Start</th>
+            <th style={thStyle}>Run</th>
+            <th style={thStyle}>Remaining Before</th>
+            <th style={thStyle}>Remaining After</th>
+          </tr>
+        </thead>
+        <tbody>
+          {perRoundSchedule.map((step, i) => (
+            <tr key={i}>
+              <td style={tdStyle}>{step.round}</td>
+              <td style={tdStyle}>{step.process}</td>
+              <td style={tdStyle}>{step.start}</td>
+              <td style={tdStyle}>{step.run}</td>
+              <td style={tdStyle}>{step.remainingBefore}</td>
+              <td style={tdStyle}>{step.remainingAfter}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -288,6 +375,70 @@ function SJFTurnaroundTable({ processes }) {
   );
 }
 
+// Turnaround Table for Priority Scheduling
+function PriorityTurnaroundTable({ processes }) {
+  const { waiting, sortedProcesses, turnaround } = getPriorityWaitingAndTurnaround(processes);
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr style={{ background: "#f3f3f3" }}>
+          <th style={thStyle}>Process</th>
+          <th style={thStyle}>Priority</th>
+          <th style={thStyle}>Burst Time</th>
+          <th style={thStyle}>Waiting Time</th>
+          <th style={thStyle}>Calculation</th>
+          <th style={thStyle}>Turnaround Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedProcesses.map((p, i) => (
+          <tr key={p.pid}>
+            <td style={tdStyle}>{p.pid}</td>
+            <td style={tdStyle}>{p.priority}</td>
+            <td style={tdStyle}>{p.burstTime}</td>
+            <td style={tdStyle}>{waiting[i]}</td>
+            <td style={tdStyle}>{`${waiting[i]} + ${p.burstTime} = ${turnaround[i]}`}</td>
+            <td style={tdStyle}>{turnaround[i]}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// NEW: Turnaround Table for Round Robin
+function RRTurnaroundTable({ processes, waitingTimes }) {
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr style={{ background: "#f3f3f3" }}>
+          <th style={thStyle}>Process</th>
+          <th style={thStyle}>Burst Time</th>
+          <th style={thStyle}>Waiting Time</th>
+          <th style={thStyle}>Calculation</th>
+          <th style={thStyle}>Turnaround Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {processes.map((p, i) => {
+          const burstTime = Number(p.burstTime);
+          const waitingTime = Number(waitingTimes[i]);
+          const turnaroundTime = waitingTime + burstTime;
+          return (
+            <tr key={p.pid}>
+              <td style={tdStyle}>{p.pid}</td>
+              <td style={tdStyle}>{burstTime}</td>
+              <td style={tdStyle}>{waitingTime}</td>
+              <td style={tdStyle}>{`${waitingTime} + ${burstTime} = ${turnaroundTime}`}</td>
+              <td style={tdStyle}>{turnaroundTime}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 // Table styles
 const tableStyle = {
   width: "100%",
@@ -332,7 +483,13 @@ function CalculationModal({
   const algo = algoInfo[algorithm] || {};
   const calc = calcTypeInfo[calcType] || {};
 
-  // Show Waiting Table for FCFS, SJF or Priority
+  // Calculate RR data if needed
+  let rrData = null;
+  if (algorithm === "rr") {
+    rrData = getRRWaitingAndTurnaround(processes, timeQuantum);
+  }
+
+  // Show Waiting Table for FCFS, SJF, Priority or RR
   const showWaitingTable = calcType === "waiting" && Array.isArray(processes) && processes.length > 0;
   let waitingTable = null;
   if (showWaitingTable) {
@@ -342,10 +499,12 @@ function CalculationModal({
           waitingTable = <SJFWaitingTable processes={processes} />;
       } else if (algorithm === "priority") {
           waitingTable = <PriorityWaitingTable processes={processes} />;
+      } else if (algorithm === "rr") {
+          waitingTable = <RRWaitingTable processes={processes} perRoundSchedule={rrData?.perRoundSchedule || []} />;
       }
   }
 
-  // Show Turnaround Table for FCFS, SJF or Priority
+  // Show Turnaround Table for FCFS, SJF, Priority or RR
   const showTurnaroundTable = calcType === "turnaround" && Array.isArray(processes) && processes.length > 0;
   let turnaroundTable = null;
   if (showTurnaroundTable) {
@@ -355,6 +514,13 @@ function CalculationModal({
           turnaroundTable = <SJFTurnaroundTable processes={processes} />;
       } else if (algorithm === "priority") {
           turnaroundTable = <PriorityTurnaroundTable processes={processes} />;
+      } else if (algorithm === "rr") {
+          turnaroundTable = (
+            <RRTurnaroundTable 
+              processes={processes} 
+              waitingTimes={rrData?.waitingTimes || []} 
+            />
+          );
       }
   }
 
@@ -368,37 +534,65 @@ function CalculationModal({
 
   // Explanation for each
   const calcExplain = {
-      turnaround: (
-          <>
-              <div>Turnaround Time = Completion Time - Arrival Time</div>
-              <div>Or equivalently: Turnaround Time = Waiting Time + Burst Time</div>
-          </>
-      ),
-      avgWaiting: "Average Waiting Time = Sum of all processes' waiting times / Number of processes",
-      avgTurnaround: "Average Turnaround Time = Sum of all processes' turnaround times / Number of processes",
-      waiting: algorithm === "priority" ? (
-          <>
-                  <p class="mb-3">In <strong>Priority Scheduling</strong> the CPU is allocated to the
-      process with the <em>highest</em> priority (i.e. the <em>lowest</em> numerical value).
-      The waiting time for each process is computed cumulatively, using:</p>
-      <p class="mb-4"><code>WT[i] = WT[i-1] + BT[i-1]</code> &nbsp;&nbsp;for&nbsp; i &gt; 0, &nbsp;and&nbsp;
-      <code>WT[0] = 0</code></p>
-
-          </>
-      ) : (
-          <>
-              <div>
-                  In First-Come, First-Served scheduling, processes are executed in the order they arrive in the ready queue. The waiting time for each process is calculated as follows:
-              </div>
-              <ul>
-                  <li>The first process has a waiting time of 0</li>
-                  <li>For subsequent processes, waiting time = previous process waiting time + previous process burst time</li>
-                  <li>Formula: <code>wt[i] = bt[i-1] + wt[i-1]</code></li>
-              </ul>
-          </>
-      )
+    turnaround: (
+      <>
+        <div>Turnaround Time = Completion Time - Arrival Time</div>
+        <div>Or equivalently: Turnaround Time = Waiting Time + Burst Time</div>
+      </>
+    ),
+    avgWaiting: "Average Waiting Time = Sum of all processes' waiting times / Number of processes",
+    avgTurnaround: "Average Turnaround Time = Sum of all processes' turnaround times / Number of processes",
+    waiting:
+      algorithm === "rr" ? (
+        <>
+          <div>Round Robin gives each process a fixed time quantum.</div>
+          <div>If a process doesn't complete in its quantum, it's moved to the back of the queue.</div>
+          <div>Waiting time is calculated based on how long each process waits between executions.</div>
+        </>
+      ) : algorithm === "priority" ? (
+        <>
+          <p className="mb-3">
+            In <strong>Priority Scheduling</strong>, the CPU is allocated to the
+            process with the <em>highest</em> priority (i.e. the <em>lowest</em> numerical value).
+            The waiting time for each process is computed cumulatively, using:
+          </p>
+          <p className="mb-4">
+            <code>WT[i] = WT[i-1] + BT[i-1]</code> &nbsp;for&nbsp; i &gt; 0,&nbsp; and&nbsp;
+            <code>WT[0] = 0</code>
+          </p>
+        </>
+      ) : algorithm === "sjf" ? (
+        <>
+          <p className="mb-3">
+            In <strong>Shortest-Job-First (SJF)</strong> scheduling, the CPU is
+            allocated to the process with the <em>smallest</em> burst time among the
+            processes that have already arrived. Below are the step-by-step waiting time
+            calculations following that execution order.
+          </p>
+          <ul className="list-disc ml-6 mb-4">
+            <li>The first selected process has a waiting time of <code>0</code>.</li>
+            <li>
+              For every other process:
+              <br />
+              <code>WT[i] = WT[i-1] + BT[i-1] + AT[i-1] − AT[i]</code>
+            </li>
+          </ul>
+        </>
+      ) : algorithm === "fcfs" ? (
+        <>
+          <p className="mb-3">
+            In <strong>First-Come, First-Served (FCFS)</strong> scheduling, processes are executed in the
+            order they arrive in the ready queue. The waiting time for each process is calculated as follows:
+          </p>
+          <ul className="list-disc ml-6 mb-4">
+            <li>The first process has a waiting time of <code>0</code>.</li>
+            <li>For subsequent processes, waiting time = previous process waiting time + previous process burst time.</li>
+            <li>Formula: <code>WT[i] = BT[i-1] + WT[i-1]</code></li>
+          </ul>
+        </>
+      ) : null
   }[calcType];
-
+  
   // Formula for each
   const avgFormula = {
       avgWaiting: `Average WT = (Sum of Waiting Times) / ${processes?.length || "n"}`,
@@ -449,7 +643,7 @@ function CalculationModal({
               </h3>
               <div style={{ marginBottom: 16 }}>
                   <b>Process Execution Timeline:</b>
-                  <GanttChart steps={ganttSteps} />
+                  <GanttChart steps={algorithm === "rr" ? rrData?.ganttSteps : ganttSteps} />
               </div>
               {/* Waiting Table */}
               {showWaitingTable && (
