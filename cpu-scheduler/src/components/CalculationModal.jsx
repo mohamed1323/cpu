@@ -88,8 +88,9 @@ function getPriorityWaitingAndTurnaround(processes) {
   return { waiting, turnaround, sortedProcesses };
 }
 
-// Util: Calculate Round Robin scheduling
-function getRRWaitingAndTurnaround(processes, quantum = 1) {
+// ... (other parts of your original code remain unchanged)
+// Util: Calculate Round Robin scheduling with dynamic quantum
+function getRRWaitingAndTurnaround(processes) {
   const remainingTime = processes.map(p => p.burstTime);
   const waitingTimes = processes.map(() => 0);
   const turnaroundTimes = processes.map(() => 0);
@@ -105,6 +106,10 @@ function getRRWaitingAndTurnaround(processes, quantum = 1) {
     for (let i = 0; i < processes.length; i++) {
       if (remainingTime[i] > 0) {
         anyProcessExecuted = true;
+        
+        // Dynamic quantum calculation (Example: based on remaining burst time)
+        const quantum = Math.max(1, Math.floor(remainingTime[i] / 2)); // Example: half of remaining time
+        
         const startTime = time;
         const executionTime = Math.min(quantum, remainingTime[i]);
         
@@ -265,25 +270,49 @@ function PriorityWaitingTable({ processes }) {
   );
 }
 
-// Waiting Table for Round Robin (simplified)
-function RRWaitingTable({ processes, waitingTimes }) {
+// Waiting Table for Round Robin
+function RRWaitingTable({ processes, perRoundSchedule }) {
   return (
-    <table style={tableStyle}>
-      <thead>
-        <tr style={{ background: "#f3f3f3" }}>
-          <th style={thStyle}>Process</th>
-          <th style={thStyle}>Waiting Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {processes.map((p, i) => (
-          <tr key={p.pid}>
-            <td style={tdStyle}>{p.pid}</td>
-            <td style={tdStyle}>{waitingTimes[i]}</td>
-          </tr>
+    <div>
+      <h4>Process Execution Timeline:</h4>
+      <div style={{ marginBottom: '16px' }}>
+        {perRoundSchedule.map((step, i) => (
+          <span key={i} style={{ marginRight: '8px' }}>{step.process}</span>
         ))}
-      </tbody>
-    </table>
+      </div>
+      <div style={{ marginBottom: '24px' }}>
+        {perRoundSchedule.map((step, i) => (
+          <span key={i} style={{ marginRight: '32px' }}>{step.start}</span>
+        ))}
+        <span>{perRoundSchedule[perRoundSchedule.length - 1].start + perRoundSchedule[perRoundSchedule.length - 1].run}</span>
+      </div>
+
+      <h4>Per-Round Schedule</h4>
+      <table style={tableStyle}>
+        <thead>
+          <tr style={{ background: "#f3f3f3" }}>
+            <th style={thStyle}>Round</th>
+            <th style={thStyle}>Process</th>
+            <th style={thStyle}>Start</th>
+            <th style={thStyle}>Run</th>
+            <th style={thStyle}>Remaining Before</th>
+            <th style={thStyle}>Remaining After</th>
+          </tr>
+        </thead>
+        <tbody>
+          {perRoundSchedule.map((step, i) => (
+            <tr key={i}>
+              <td style={tdStyle}>{step.round}</td>
+              <td style={tdStyle}>{step.process}</td>
+              <td style={tdStyle}>{step.start}</td>
+              <td style={tdStyle}>{step.run}</td>
+              <td style={tdStyle}>{step.remainingBefore}</td>
+              <td style={tdStyle}>{step.remainingAfter}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -451,10 +480,11 @@ function CalculationModal({
   processes,
   ganttSteps,
   resultValue,
-  timeQuantum = 2,
+  timeQuantum, // ✅ Dynamic input required from caller
   waitingTimes,
   turnaroundTimes
 }) {
+
   if (!show) return null;
   const algo = algoInfo[algorithm] || {};
   const calc = calcTypeInfo[calcType] || {};
@@ -476,7 +506,7 @@ function CalculationModal({
       } else if (algorithm === "priority") {
           waitingTable = <PriorityWaitingTable processes={processes} />;
       } else if (algorithm === "rr") {
-          waitingTable = <RRWaitingTable processes={processes} waitingTimes={rrData?.waitingTimes || []} />;
+          waitingTable = <RRWaitingTable processes={processes} perRoundSchedule={rrData?.perRoundSchedule || []} />;
       }
   }
 
